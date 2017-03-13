@@ -14,7 +14,7 @@ if strcmpi(lowhigh,'low')
     cfgfrq.keeptrials  = 'yes';
     cfgfrq.keeptapers  = 'yes';
     cfgfrq.complex     = 'complex';
-    cfgfrq.t_ftimwin   = 7./cfgfrq.foi;  % 7 cycles per time window
+    cfgfrq.t_ftimwin   = 4./cfgfrq.foi;  % 7 cycles per time window
     cfgfrq.toi         = time_window;
 
     freq = ft_freqanalysis(cfgfrq, data);
@@ -42,13 +42,14 @@ elseif strcmpi(lowhigh,'high')
     cfgfrq = [];
     cfgfrq.output      = 'fourier';
     cfgfrq.method      = 'mtmconvol';
-    cfgfrq.foi         = 30:2:120;
+    cfgfrq.foi         = 30:3:90;
+    cfgfrq.tapsmofrq   = 10;
     cfgfrq.taper       = 'hanning';
     cfgfrq.pad         = 'maxperlen';
     cfgfrq.keeptrials  = 'yes';
     cfgfrq.keeptapers  = 'yes';
     cfgfrq.complex     = 'complex';
-    cfgfrq.t_ftimwin   = 7./cfgfrq.foi;  % 7 cycles per time window
+    cfgfrq.t_ftimwin   = 4./cfgfrq.foi;  % 7 cycles per time window
     cfgfrq.toi         = time_window;
     
     if ~strcmpi(whichdata,'all')

@@ -1,8 +1,3 @@
-cfgfrq = [];
-cfgfrq.baseline = 'no';
-cfgfrq.baselinetype = [];
-cfgfrq.maskstyle    = 'saturation';
-cfgfrq.zparam       = 'powspctrm';
 
 
 %written 11/10 && 11/11 2015 by Seth Konig using/combining/modify code
@@ -327,47 +322,3 @@ xlabel('Time from ITI start(sec)')
 %%
 
 
-baselinetypes = {'absolute','relchange','relative'};
-
-
-baselinetype = baselinetypes{2};
-baseline = [0.25 0.75];% baseline time interval; cfgfrq.baseline
-
-timeVec = freq.time;
-
-tidx = find(timeVec >= baseline(1) & timeVec <= baseline(2));
-
-TFdata = all_low_freq_data;
-
-TFbl = NaN(size(TFdata,1),size(TFdata,2));
-for k=1:size(TFdata,2) % loop frequencies
-    for l=1:size(TFdata,1) % loop channels
-        TFbl(l,k) = nanmean(TFdata(l,k,tidx),3); %compute average baseline power
-        if TFbl(l,k) == 0,
-            error('Average baseline power is zero');
-        end
-    end
-end
-
-if strcmpi(baselinetype,'relative')
-    for k=1:size(TFdata,2) % loop frequencies
-        for l=1:size(TFdata,1) % loop channels
-            TFdata(l,k,:) = TFdata(l,k,:) / TFbl(l,k);     % compute relative change (i.e. ratio)
-        end
-    end
-    
-elseif strcmpi(baselinetype,'absolute')
-    for k=1:size(TFdata,2) % loop frequencies
-        for l=1:size(TFdata,1) % loop channels
-            TFdata(l,k,:) = TFdata(l,k,:) - TFbl(l,k);        % subtract baseline power
-        end
-    end
-    
-elseif strcmpi(baselinetype,'relchange')
-    for k=1:size(TFdata,2) % loop frequencies
-        for l=1:size(TFdata,1) % loop channels
-            TFdata(l,k,:) = ((TFdata(l,k,:) - TFbl(l,k)) / TFbl(l,k)); % compute relative change
-        end
-    end
-    
-end

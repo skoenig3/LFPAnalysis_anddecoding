@@ -4,8 +4,8 @@
 % code runs all the other code preprocess then process recording data
 clar 
 
-%monkey = 'Vivian'; 
-monkey = 'Tobii'; 
+monkey = 'Vivian'; 
+% monkey = 'Tobii'; 
 
 data_dir = 'C:\Users\seth.koenig\Documents\MATLAB\LFPAnalysis_anddecoding\Data\';
 figure_dir = 'C:\Users\seth.koenig\Documents\MATLAB\LFPAnalysis_anddecoding\Figures\';
@@ -78,9 +78,9 @@ elseif strcmpi(monkey,'Tobii')
     session_data(end) = [];%last file doesn't have strobe signal working on importing the data
 end
 
-for sess = 1:length(session_data)
-    get_saccade_aligned_LFPs_across_tasks(session_data{sess},data_dir,eye_data_dir)
-end
+% for sess = 1:length(session_data)
+%     get_saccade_aligned_LFPs_across_tasks(session_data{sess},data_dir,eye_data_dir)
+% end
 
 for sess = 1:length(session_data)
     saccade_aligned_LFP_analysis(session_data{sess},data_dir,figure_dir)
