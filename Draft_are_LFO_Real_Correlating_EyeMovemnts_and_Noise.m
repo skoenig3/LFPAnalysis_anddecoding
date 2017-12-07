@@ -1,7 +1,7 @@
 % clar
 
 task = 'ListSQ';
-twin = 750;% how much time to take before and after saccade.
+twin = 1000;% how much time to take before and after saccade.
 image_on_twin = 500;
 fixwin = 5;%size of fixation window on each crosshair
 item_event_codes = [23 24 25 26 27 28 29 30]; %odd indeces item on, even indeces item off

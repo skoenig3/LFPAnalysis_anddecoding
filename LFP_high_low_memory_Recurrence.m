@@ -3,8 +3,8 @@
 
 clar
 
-twin1 = 250;% how much time to take before event cross appears and how much to ignore during fixation
-twin2 =750;%how much time to look at after stimulus onset for short window
+twin1 = 200;% how much time to take before event cross appears and how much to ignore during fixation
+twin2 = 5000;%how much time to look at after stimulus onset for short window
 twin4 = 5000; %for long window on image on
 numshuffs = 10000; %number of shuffles to do for bootstrapping
 imageX = 800;
@@ -26,10 +26,11 @@ task = 'ListSQ';
 all_LFPs = cell(1,85);
 fixation_durations = cell(2,85);
 saccade_amplitudes = cell(2,85);
-KL_divergences = cell(1,85);
+all_recurrence_measures = cell(2,85);
+image_pair_count = zeros(1,85);
 
 set = 0;
-for monkey = 2:-1:1
+for monkey = 1:2
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     %---Read in Excel Sheet for Session data---%%%
     %only need to run when somethings changed or sessions have been added
@@ -120,8 +121,9 @@ for monkey = 2:-1:1
         fixation_durations{2,set} = NaN(96,40);
         saccade_amplitudes{1,set} = NaN(96,40);
         saccade_amplitudes{2,set} = NaN(96,40);
+        all_recurrence_measures{1,set} = NaN(96,5);
+        all_recurrence_measures{2,set} = NaN(96,5);
 
-        fixation_locations = cell(2,96);
         
         nvr = NaN(1,192);
         which_images = NaN(1,192);
@@ -168,9 +170,7 @@ for monkey = 2:-1:1
                     fixations(:,invalid) = [];
                     invalid= find(saccadetimes(2,:) > imgoff);
                     saccadetimes(:,invalid) = [];
-                    
-                    fixation_locations{nvr(img_index),which_img(img_index)} = fixations;
-                    
+                                        
                     fixdurs = diff(fixationtimes)+1; %calculate fixation duration
                     fixation_durations{nvr(img_index),set}(which_img(img_index),1:size(fixationtimes,2)) = fixdurs;
                     
@@ -187,6 +187,16 @@ for monkey = 2:-1:1
                             saccade_amplitudes{nvr(img_index),set}(which_img(img_index),f) = sacamp;
                         end
                     end
+                    
+                    
+                    [recurrence_rate,~,corm,laminarity,~,forward_trace,~,reverse_trace,~] = ...
+                        calculate_auto_recurrence(fixations,40,48);
+                    
+                    all_recurrence_measures{nvr(img_index),set}(which_img(img_index),1) = recurrence_rate;
+                    all_recurrence_measures{nvr(img_index),set}(which_img(img_index),2) = corm;
+                    all_recurrence_measures{nvr(img_index),set}(which_img(img_index),3) = laminarity;
+                    all_recurrence_measures{nvr(img_index),set}(which_img(img_index),4) = forward_trace;
+                    all_recurrence_measures{nvr(img_index),set}(which_img(img_index),5) = reverse_trace;
                 end
             end
         end
@@ -206,7 +216,8 @@ for monkey = 2:-1:1
         fixation_durations{2,set}(rmv,:) = NaN;
         saccade_amplitudes{1,set}(rmv,:) = NaN;
         saccade_amplitudes{2,set}(rmv,:) = NaN;
-        fixation_locations(:,rmv) = {NaN};
+        all_recurrence_measures{1,set}(rmv,:) = NaN;
+        all_recurrence_measures{2,set}(rmv,:) = NaN;
         
         for chan = 1:size(time_lock_LFP,2)
             time_lock_LFP{1,chan}(rmv,:) = NaN;
@@ -214,42 +225,8 @@ for monkey = 2:-1:1
         end
         all_LFPs{set} = time_lock_LFP;
         
-        %----Calculate KL Divergence Measure---%
-        KL_diver = NaN(1,96);
-        for im = 1:96
-            if ~isnan(fixation_locations{1,im})
-                maxfixations = min([size(fixation_locations{1,im},2),size(fixation_locations{2,im},2)]);
-                if maxfixations > 20
-                    maxfixations = 20;
-                elseif maxfixations < 10 
-                    continue
-                end
-                nov_matrix = zeros(imageY,imageX);
-                rep_matrix = zeros(imageY,imageX);
-                
-                for f = 3:maxfixations%ignore first 2 fixations
-                    x = round(fixation_locations{1,im}(1,f));
-                    x(x < 1) = 1;
-                    x(x > imageX) = imageX;
-                    y = round(fixation_locations{1,im}(2,f));
-                    y(y < 1) = 1;
-                    y(y > imageY) = imageY;
-                    nov_matrix(y,x) = nov_matrix(y,x)+1;
-                end
-                
-                 for f = 3:maxfixations%ignore first 2 fixations
-                    x = round(fixation_locations{2,im}(1,f));
-                    x(x < 1) = 1;
-                    x(x > imageX) = imageX;
-                    y = round(fixation_locations{2,im}(2,f));
-                    y(y < 1) = 1;
-                    y(y > imageY) = imageY;
-                    rep_matrix(y,x) = rep_matrix(y,x)+1;
-                 end
-                KL_diver(im) = KL_Divergence(nov_matrix,rep_matrix);
-            end
-        end
-        KL_divergences{set} = KL_diver;
+        image_pair_count(set) = sum(~isnan(fixation_durations{1,set}(:,1)));
+     
     end
 end
 
@@ -331,38 +308,86 @@ ylim([-45 30])
 title('All Novel/Repeat Images')
 
 %%
-
 high_recog_nov = [];
 low_recog_nov = [];
 high_recog_rep = [];
 low_recog_rep = [];
 
+
+high_recog_nov_durs = [];
+low_recog_nov_durs = [];
+high_recog_rep_durs = [];
+low_recog_rep_durs = [];
+
+
 for set = 1:size(fixation_durations,2);
     if ~isempty(all_LFPs{set})
         nov_durs = fixation_durations{1,set}; %novel images
         rep_durs = fixation_durations{2,set}; %repeat images
+
+        mean_fix_durs = nanmean(nov_durs(:,4:end)');
+        rep_recurrence_measures = all_recurrence_measures{1,set}(:,:);
+
+
+%         mean_fix_durs = nanmean(rep_durs(:,1:end)');
+%         rep_recurrence_measures = all_recurrence_measures{2,set}(:,:);
+%         rep_recurrence_measures(:,1) = [];
+%         rep_recurrence_measures(:,3) = [];
         
-        change_durs = rep_durs-nov_durs;
-        change_durs = nanmean(rep_durs(:,3:12)');
+        nandurs = find(isnan(mean_fix_durs));
+        nanmeasures = find(isnan(sum(rep_recurrence_measures',1)));
+        nanvals = unique([nandurs,nanmeasures]);
         
-        low_thresh = prctile(change_durs,33);
-        high_thresh = prctile(change_durs,66);
         
-        high_ind = find(change_durs >= high_thresh);
-        low_ind = find(change_durs <= low_thresh);
+        group_vals = [mean_fix_durs' rep_recurrence_measures];
+        group_vals(nanvals,:) = [];
+    
+        [U,~,~] = pca(group_vals ,1);        
         
+        low_thresh = prctile(U,33);
+        high_thresh = prctile(U,66);
+        
+        high_ind = find(U >= high_thresh);
+        low_ind = find(U <= low_thresh);
+        
+        high_recog_nov_durs = [high_recog_nov_durs; nanmean(nov_durs(high_ind,:))];
+        low_recog_nov_durs = [low_recog_nov_durs; nanmean(nov_durs(low_ind,:))];
+        high_recog_rep_durs = [high_recog_rep_durs; nanmean(rep_durs(high_ind,:))];
+        low_recog_rep_durs = [low_recog_rep_durs; nanmean(rep_durs(low_ind,:))];
         
         for chan = 1:size(all_LFPs{set},2)
             
-            high_recog_nov = [high_recog_nov; nanmean(all_LFPs{set}{1,chan}(high_ind,:))];
-            high_recog_rep = [high_recog_rep; nanmean(all_LFPs{set}{2,chan}(high_ind,:))];
+            nov_LFPs = all_LFPs{set}{1,chan};
+            nov_LFPs(nanvals,:) = [];
+            rep_LPFs = all_LFPs{set}{2,chan};
+            rep_LPFs(nanvals,:) = [];
             
-            low_recog_nov =  [low_recog_nov; nanmean(all_LFPs{set}{1,chan}(low_ind,:))];
-            low_recog_rep  = [low_recog_rep; nanmean(all_LFPs{set}{2,chan}(low_ind,:))];
+            high_recog_nov = [high_recog_nov; nanmean(nov_LFPs(high_ind,1:2200))];
+            high_recog_rep = [high_recog_rep; nanmean(rep_LPFs(high_ind,1:2200))];
+            
+            low_recog_nov =  [low_recog_nov; nanmean(nov_LFPs(low_ind,1:2200))];
+            low_recog_rep  = [low_recog_rep; nanmean(rep_LPFs(low_ind,1:2200))];
         end
     end
 end
-%%
+
+%---Plot Results---%
+figure
+hold on
+errorbar(nanmean(high_recog_nov_durs(:,1:20)),nanstd(high_recog_nov_durs(:,1:20))./sqrt(85))
+errorbar(nanmean(low_recog_nov_durs(:,1:20)),nanstd(low_recog_nov_durs(:,1:20))./sqrt(85))
+errorbar(nanmean(high_recog_rep_durs(:,1:20)),nanstd(high_recog_rep_durs(:,1:20))./sqrt(85))
+errorbar(nanmean(low_recog_rep_durs(:,1:20)),nanstd(low_recog_rep_durs(:,1:20))./sqrt(85))
+hold off
+xlabel('Ordinal Fixation #')
+ylabel('Fixation Duration (ms)')
+legend('High Nov','Low Nov','High Rep','Low Rep')
+xlim([0 21])
+ylim([160 260])
+
+
+
+numshuffs = 10000;
 min_cluster_size = 30;
 
 all_novrep = [high_recog_nov; high_recog_rep];
@@ -390,6 +415,7 @@ observed_diff = nanmean(low_recog_nov)-nanmean(low_recog_rep);
 min_cluster_size = 30;
 [~,low_sig_times] = cluster_level_statistic(observed_diff,all_curves,2,min_cluster_size); %multiple comparision corrected significant indeces
 
+tm = -twin1:2000-1
 
 figure
 subplot(1,2,1)
@@ -413,7 +439,7 @@ hold off
 xlabel('Time from Image Onset (ms)')
 ylabel('LFP (uV)')
 title('High Recognition')
-xlim([-twin1 twin2])
+xlim([-twin1 2000])
 ylim([-45 30])
 
 subplot(1,2,2)
@@ -436,220 +462,6 @@ hold off
 xlabel('Time from Image Onset (ms)')
 ylabel('LFP (uV)')
 title('Low Recognition')
-xlim([-twin1 twin2])
+xlim([-twin1 2000])
 ylim([-45 30])
 
-
-
-KL_high_recog_nov = [];
-KL_low_recog_nov = [];
-KL_high_recog_rep = [];
-KL_low_recog_rep = [];
-
-for set = 1:size(fixation_durations,2);
-    if ~isempty(all_LFPs{set})
-        KLs = KL_divergences{set};
-        
-        low_thresh = prctile(KLs,33);
-        high_thresh = prctile(KLs,66);
-        
-        high_ind = find(KLs >= high_thresh);
-        low_ind = find(KLs <= low_thresh);
-        
-        
-        for chan = 1:size(all_LFPs{set},2)
-            
-            KL_high_recog_nov = [KL_high_recog_nov; nanmean(all_LFPs{set}{1,chan}(high_ind,:))];
-            KL_high_recog_rep = [KL_high_recog_rep; nanmean(all_LFPs{set}{2,chan}(high_ind,:))];
-            
-            KL_low_recog_nov =  [KL_low_recog_nov; nanmean(all_LFPs{set}{1,chan}(low_ind,:))];
-            KL_low_recog_rep  = [KL_low_recog_rep; nanmean(all_LFPs{set}{2,chan}(low_ind,:))];
-        end
-    end
-end
-
-
-min_cluster_size = 30;
-
-all_novrep = [KL_high_recog_nov; KL_high_recog_rep];
-index = [ones(1,size(KL_high_recog_nov,1)) 2*ones(1,size(KL_high_recog_rep,1))];
-all_curves = NaN(numshuffs,size(KL_high_recog_rep,2));
-
-for shuff = 1:numshuffs
-    nind = randperm(length(index));
-    ind = index(nind);
-    all_curves(shuff,:) = nanmean(all_novrep(ind == 1,:))- nanmean(all_novrep(ind == 2,:));    
-end
-observed_diff = nanmean(KL_high_recog_nov)-nanmean(KL_high_recog_rep);
-[~,high_sig_times] = cluster_level_statistic(observed_diff,all_curves,2,min_cluster_size); %multiple comparision corrected significant indeces
-
-all_novrep = [KL_low_recog_nov; KL_low_recog_rep];
-index = [ones(1,size(KL_low_recog_nov,1)) 2*ones(1,size(KL_low_recog_rep,1))];
-all_curves = NaN(numshuffs,size(KL_low_recog_rep,2));
-
-parfor shuff = 1:numshuffs
-    nind = randperm(length(index));
-    ind = index(nind);
-    all_curves(shuff,:) = nanmean(all_novrep(ind == 1,:))- nanmean(all_novrep(ind == 2,:));    
-end
-observed_diff = nanmean(KL_low_recog_nov)-nanmean(KL_low_recog_rep);
-min_cluster_size = 30;
-[~,low_sig_times] = cluster_level_statistic(observed_diff,all_curves,2,min_cluster_size); %multiple comparision corrected significant indeces
-
-
-figure
-subplot(1,2,1)
-hold on
-plot(tm, nanmean(KL_high_recog_nov),'b')
-plot(tm, nanmean(KL_high_recog_rep),'r')
-yl = ylim;
-plot([0 0],[yl(1) yl(2)],'k--')
-gaps = findgaps(find(high_sig_times));
-if ~isempty(gaps)
-    for g = 1:size(gaps,1)
-        gp = gaps(g,:);
-        gp(gp == 0) = [];
-        h = fill([min(gp) max(gp) max(gp) min(gp) min(gp)]-twin1,...
-            [yl(1) yl(1) yl(2) yl(2) yl(1)],'k');
-        uistack(h,'bottom')
-        %set(h,'FaceAlpha',0.25)
-    end
-end
-hold off
-xlabel('Time from Image Onset (ms)')
-ylabel('LFP (uV)')
-title('High Recognition')
-xlim([-twin1 twin2])
-ylim([-45 30])
-
-subplot(1,2,2)
-hold on
-plot(tm, nanmean(KL_low_recog_nov),'b')
-plot(tm, nanmean(KL_low_recog_rep),'r')
-gaps = findgaps(find(low_sig_times));
-if ~isempty(gaps)
-    for g = 1:size(gaps,1)
-        gp = gaps(g,:);
-        gp(gp == 0) = [];
-        h = fill([min(gp) max(gp) max(gp) min(gp) min(gp)]-twin1,...
-            [yl(1) yl(1) yl(2) yl(2) yl(1)],'k');
-        uistack(h,'bottom')
-        %set(h,'FaceAlpha',0.25)
-    end
-end
-
-hold off
-xlabel('Time from Image Onset (ms)')
-ylabel('LFP (uV)')
-title('Low Recognition')
-xlim([-twin1 twin2])
-ylim([-45 30])
-subtitle('High vs Low Recogntion based on Fixation Duration, Image Onset ERP')
-
-%% What is the rank relationship between change in fixaiton durations and KL divergence
-all_ranks = []; %all fixaiton durations
-KL_high_memory_nov_fix_durs = [];
-KL_high_memory_rep_fix_durs = [];
-KL_low_memory_nov_fix_durs = [];
-KL_low_memory_rep_fix_durs = [];
-for set = 1:size(fixation_durations,2);
-    if ~isempty(all_LFPs{set})
-        nov_durs = fixation_durations{1,set}; %novel images
-        rep_durs = fixation_durations{2,set}; %repeat images
-        KLs = KL_divergences{set};
-        
-        change_durs = rep_durs-nov_durs;
-        change_durs = nanmean(change_durs(:,3:12)');
-        KLs(isnan(change_durs)) =[];
-        change_durs(isnan(change_durs)) = [];
-        change_durs(isnan(KLs)) = [];
-        KLs(isnan(KLs)) = [];
-        [~,dur_rank] = sort(change_durs);
-        [~,KL_rank] = sort(KLs);
-        
-        KL_len = length(KL_rank);
-        upper3 = floor(KL_len-KL_len/3);
-        lower3 = ceil(KL_len/3);
-        
-        KL_high_memory_nov_fix_durs = [KL_high_memory_nov_fix_durs; nanmean(nov_durs(upper3:end,1:20))];
-        KL_high_memory_rep_fix_durs = [KL_high_memory_rep_fix_durs; nanmean(rep_durs(upper3:end,1:20))];
-        KL_low_memory_nov_fix_durs = [KL_low_memory_nov_fix_durs; nanmean(nov_durs(1:lower3,1:20))];
-        KL_low_memory_rep_fix_durs = [KL_low_memory_rep_fix_durs; nanmean(rep_durs(1:lower3,1:20))];
-        
-       
-        all_ranks = [all_ranks [dur_rank; KL_rank]];
-    end
-end
-%%
-figure
-hold on
-plot(nanmean(KL_high_memory_nov_fix_durs))
-errorb(1:20,nanmean(KL_high_memory_nov_fix_durs),nanstd(KL_high_memory_nov_fix_durs)./sqrt(sum(~isnan(KL_high_memory_nov_fix_durs))),'color','b')
-plot(nanmean(KL_high_memory_rep_fix_durs),'r')
-errorb(1:20,nanmean(KL_high_memory_rep_fix_durs),nanstd(KL_high_memory_rep_fix_durs)./sqrt(sum(~isnan(KL_high_memory_rep_fix_durs))),'color','r')
-plot(nanmean(KL_low_memory_nov_fix_durs),'g')
-errorb(1:20,nanmean(KL_low_memory_nov_fix_durs),nanstd(KL_low_memory_nov_fix_durs)./sqrt(sum(~isnan(KL_low_memory_nov_fix_durs))),'color','g')
-plot(nanmean(KL_low_memory_rep_fix_durs),'k')
-errorb(1:20,nanmean(KL_low_memory_rep_fix_durs),nanstd(KL_low_memory_rep_fix_durs)./sqrt(sum(~isnan(KL_low_memory_rep_fix_durs))),'color','k')
-hold off
-legend('High nov','high rep','low nov','low rep')
-xlabel('Ordinal Fixaiton #')
-ylabel('Fixation Duration')
-%%
-ranks = zeros(96,96);
-for r = 1:96
-    for rr = 1:96
-        ranks(r,rr) = sum(all_ranks(1,:) == r & all_ranks(2,:) == rr);
-    end
-end
-%%
-H = fspecial('gaussian',2*6+1,2);
-r = imfilter(ranks,H,'replicate');
-
-%%
-[r,p] = corrcoef(all_ranks(1,:),all_ranks(2,:))
-rho = corr(all_ranks(1,:)',all_ranks(2,:)','row','pairwise','type','Spearman')
-
-%%
-high_recog_nov = [];
-low_recog_nov = [];
-high_recog_rep = [];
-low_recog_rep = [];
-
-high_recog_nov = [];
-low_recog_nov = [];
-high_recog_rep = [];
-low_recog_rep = [];
-
-for set = 1:size(fixation_durations,2);
-    if ~isempty(all_LFPs{set})
-        nov_durs = fixation_durations{1,set}; %novel images
-        rep_durs = fixation_durations{2,set}; %repeat images
-        
-        change_durs = rep_durs-nov_durs;
-        change_durs = nanmean(rep_durs(:,3:12)');
-        
-        low_thresh = prctile(change_durs,33);
-        high_thresh = prctile(change_durs,66);
-        
-        high_ind = find(change_durs >= high_thresh);
-        low_ind = find(change_durs <= low_thresh);
-        
-        
-        for chan = 1:size(all_LFPs{set},2)
-            
-            high_recog_nov = [high_recog_nov; nanmean(all_LFPs{set}{1,chan}(high_ind,:))];
-            high_recog_rep = [high_recog_rep; nanmean(all_LFPs{set}{2,chan}(high_ind,:))];
-            
-            low_recog_nov =  [low_recog_nov; nanmean(all_LFPs{set}{1,chan}(low_ind,:))];
-            low_recog_rep  = [low_recog_rep; nanmean(all_LFPs{set}{2,chan}(low_ind,:))];
-        end
-    end
-end
-
-all_recog_LFPs = [high_recog_nov; high_recog_rep; low_recog_nov; low_recog_rep];
-factors = [ones(size(high_recog_nov,1),1); 2*ones(size(high_recog_rep,1),1); ...
-          3*ones(size(low_recog_nov,1),1); 4*ones(size(low_recog_rep,1),1)];
-%%
-%%
-contrasts = LFP_wavelet_ANOVA(all_recog_LFPs(:,1:2048),factors)

@@ -12,7 +12,9 @@ imgoff_code = 24;
 Fs = 1000;
 min_blks = 2;
 dotsize=6; %marker area; point width squared
-min_blink_dur = 25;
+min_blink_dur = 25;%
+
+blink_durs = [];
 
 %create 30 Hz low pass filter
 fs = 1000;
@@ -25,7 +27,7 @@ avg_blink_LFP = [];
 avg_blink_pupil = [];
 
 %
-for monkey = 2%1:2
+for monkey = 1:2
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     %---Read in Excel Sheet for Session data---%%%
     %only need to run when somethings changed or sessions have been added
@@ -164,6 +166,8 @@ for monkey = 2%1:2
                 for b = 1:size(blinks,1)
                     ind = blinks(b,:);
                     ind(ind == 0) = [];
+                    blink_durs = [blink_durs length(ind)];
+                    continue
                     if ind(1) <= 1000%twin2 %too early in the trial
                         continue
                     end

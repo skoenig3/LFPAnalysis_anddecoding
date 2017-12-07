@@ -16,7 +16,7 @@ min_fix_dur = 250;
 min_sac_amp = 2*24; %in pixels
 
 min_cluster_area = 250; %ms*Hz for multiple comparisons corrections with maris method
-numshuffs = 1000;
+numshuffs = 0;
 
 
 imageX = 800;
@@ -26,7 +26,7 @@ directs = [0 90 180 -90];
 %create 30 Hz low pass filter
 fs = 1000;
 [blow,alow] = butter(6,16/(fs/2),'low');
-[bhigh,ahigh] = butter(6,30/(fs/2),'high');
+[bhigh,ahigh] = butter(6,5/(fs/2),'high');
 
 
 LFP_count = 0;
@@ -261,7 +261,7 @@ for monkey = 2%1:2
             for chan = 1:length(LFPchannels);
                 trial_LFP = data(LFPchannels(chan)).values{trial};
                 %trial_LFP = filtfilt(blow,alow,trial_LFP); %low pass filter
-                %trial_LFP = filtfilt(bhigh,ahigh,trial_LFP); %high pass filter
+                trial_LFP = filtfilt(bhigh,ahigh,trial_LFP); %high pass filter
                 for f = 1:length(fixation_start_time)
                     if ~isnan(fixation_start_time(f))
                         this_fixation_LFP = trial_LFP(fixation_start_time(f)-twin:fixation_start_time(f)+twin);
